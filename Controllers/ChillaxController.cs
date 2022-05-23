@@ -11,17 +11,18 @@ namespace Chillax.Controllers
     [Route("[controller]")]
     public class ChillaxController : ControllerBase
     {
-        private IHubContext<ChatHub, IHubChat> _chat;
+        private IHubContext<ChatHub> _chat;
         private readonly ILogger<ChillaxController> _logger;
         private readonly AppDbContext _context;
 
-        public ChillaxController(ILogger<ChillaxController> logger,AppDbContext context, IHubContext<ChatHub, IHubChat> chat)
+        public ChillaxController(ILogger<ChillaxController> logger,AppDbContext context, IHubContext<ChatHub> chat)
         {
             _logger = logger;
             _context = context;
             _chat = chat;
         }
         [HttpPost("User")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AppResponse))]
         public async Task<ActionResult> AddUser([FromForm]string userName)
         {
             var isUserNameExist = _context.User.Any(u => u.Name.Equals(userName));
@@ -41,29 +42,30 @@ namespace Chillax.Controllers
         }
         
         [HttpPost("Message")]
-        public async Task<ActionResult> SendMessage([FromForm]DataModel model)
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DataModel))]
+        public async Task<ActionResult> SendMessage([FromForm]string userName, [FromForm] string message)
         {
-            var user = _context.User.FirstOrDefault(u => u.Name.Equals(model.UserName));
+            var user = _context.User.FirstOrDefault(u => u.Name.Equals(userName));
             if (user is null) return new BadRequestObjectResult(new AppResponse("Server Error", ResponseStatus.Error));
            
             ModelResponse response = new ();
-            Result.Fun(model.Message,out response!);
+           // Result.Fun(model.Message,out response!);
             
-            model.Status = GetStatus(response);
+            var status = GetStatus(response);
 
-            var message = new Messages()
+            var Message = new Messages()
             {
                 UserId = user.Id,
-                Status = (MessageStatus)model.Status,
-                Message = model.Message,
+                Status = status,
+                Message = message,
                 MessageDate = DateTime.Now
             };
-            await _context.Messages.AddAsync(message);
+            await _context.Messages.AddAsync(Message);
             await _context.SaveChangesAsync();
 
-            await _chat.Clients.All.Send(model);
+            await _chat.Clients.All.SendAsync("Send", userName, message,status);
             _logger.LogInformation("Message has been sent");
-            return new OkObjectResult(new DataModel() { Message = message.Message, Status = message.Status, UserName = message.User.Name });
+            return new OkObjectResult(new DataModel() { Message = Message.Message, Status = Message.Status, UserName = Message.User.Name });
         }
 
         private static MessageStatus GetStatus(ModelResponse response)
@@ -110,8 +112,9 @@ namespace Chillax.Controllers
             }
             return 0;
         }
-
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DataModel))]
         [HttpGet("Messages")]
+
         public async Task<ActionResult> Messages([FromQuery]int pageIndex = 1, [FromQuery] int pageSize = 10)
         {
             var messages = await _context.Messages.Include(m=>m.User).Select(m=>m).Skip(pageSize * (pageIndex - 1)).Take(pageSize).ToListAsync();

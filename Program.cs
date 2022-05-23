@@ -25,13 +25,30 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 var app = builder.Build();
 
+//app.UseEndpoints((c) =>
+//{
+//    c.MapControllers();
+
+//    c.MapSwagger();
+//});
+
+//app.UseSwaggerUI(c =>
+//{
+//    c.SwaggerEndpoint($"/swagger/Chillax/swagger.json", "API V1");
+//});
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+else
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+app.UseDeveloperExceptionPage();
 app.UseHttpsRedirection();
 app.UseCors("cors");
 app.UseAuthorization();

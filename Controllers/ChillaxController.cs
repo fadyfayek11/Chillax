@@ -47,9 +47,8 @@ namespace Chillax.Controllers
         {
             var user = _context.User.FirstOrDefault(u => u.Name.Equals(userName));
             if (user is null) return new BadRequestObjectResult(new AppResponse("Server Error", ResponseStatus.Error));
-           
-            ModelResponse response = new ();
-           // Result.Fun(model.Message,out response!);
+            
+            var response = await Result.GetPredictions(message);
             
             var status = GetStatus(response);
 

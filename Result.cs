@@ -5,53 +5,38 @@ using Chillax.Models;
 namespace Chillax;
     public class Result
     {
-        public static void Fun(string message, out ModelResponse? response)
-
+        public static async Task<ModelResponse> GetPredictions(string message)
         {
-            response = new ModelResponse()
-            {
-                IsDepression = false,
-                IsHateSpeech = false,
-                IsOffensive = false,
-            };
-            using NamedPipeClientStream pipeClient = new(".", "ChillaxSocket", PipeDirection.InOut);
-            Console.WriteLine("Attempting to connect to pipe...");
-            pipeClient.Connect();
+            await using NamedPipeClientStream pipeClient = new(".", "ChillaxSocket", PipeDirection.InOut);
+            Console.WriteLine("Attempting to connect to model server pipe...");
+            await pipeClient.ConnectAsync();
+            Console.WriteLine("Connection successful");
             try
             {
-
-                using BinaryWriter _bw = new(pipeClient);
-                using BinaryReader _br = new(pipeClient);
-                var receivedResponse = false;
-                while (!receivedResponse)
+                while (true)
                 {
-                    var request = new ModelRequest() { Message = message };
+                    var request = new ModelRequest() {Message = message};
                     var str = JsonSerializer.Serialize(request);
-
-                    var buf = Encoding.ASCII.GetBytes(str);
-                    _bw.Write((uint)buf.Length);
-                    _bw.Write(buf);
+                    var buf = Encoding.UTF8.GetBytes(str);
+                    await pipeClient.WriteAsync(Encoding.UTF8.GetBytes(buf.Length.ToString()));
+                    await pipeClient.WriteAsync(buf);
 
                     Console.WriteLine($"message sent: {request.Message}");
 
-                    var len = _br.ReadUInt32();
-                    var temp = new string(_br.ReadChars((int)len));
-                    Console.WriteLine("response:");
-                      
-                    response = JsonSerializer.Deserialize<ModelResponse>(temp);
-                    Console.WriteLine($"is offensive: {response?.IsOffensive}");
-                    Console.WriteLine($"is hatespeech: {response?.IsHateSpeech}");
-                    Console.WriteLine($"is depression: {response?.IsDepression}");
-                    Console.WriteLine($"message: {response?.Message}");
-                    receivedResponse = true;
+                    var lenBuffer = new byte[4];
+                    var _ = await pipeClient.ReadAsync(lenBuffer.AsMemory(0, lenBuffer.Length));
+                    var messageBuffer = new byte[BitConverter.ToInt32(lenBuffer)];
+                    _ = await pipeClient.ReadAsync(messageBuffer.AsMemory(0, messageBuffer.Length));
+                    var temp = Encoding.UTF8.GetString(messageBuffer);
+                    var modelServerResponse = JsonSerializer.Deserialize<ModelResponse>(temp);
+                    return modelServerResponse ?? new ModelResponse();
                 }
             }
-            // Catch the IOException that is raised if the pipe is broken
-            // or disconnected.
             catch (IOException e)
             {
                 Console.WriteLine("ERROR: {0}", e.Message);
             }
+            return new ModelResponse();
         }
     }
 

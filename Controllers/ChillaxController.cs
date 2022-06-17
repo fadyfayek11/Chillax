@@ -49,7 +49,6 @@ namespace Chillax.Controllers
             if (user is null) return new BadRequestObjectResult(new AppResponse("Server Error", ResponseStatus.Error));
             
             var response = await Result.GetPredictions(message);
-            
             var status = GetStatus(response);
 
             var Message = new Messages()

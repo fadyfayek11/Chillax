@@ -9,4 +9,9 @@ public class ModelResponse
     public bool IsHateSpeech { get; set; }
 
     public bool IsDepression { get; set; }
+
+    public override string ToString()
+    {
+        return $"Offensive:{IsOffensive}, Hatespeech:{IsHateSpeech}, Depression: {IsDepression}";
+    }
 }

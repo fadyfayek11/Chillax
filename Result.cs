@@ -1,4 +1,5 @@
 ﻿using System.IO.Pipes;
+using System.Security.AccessControl;
 using System.Text;
 using System.Text.Json;
 using Chillax.Models;
@@ -28,7 +29,7 @@ namespace Chillax;
                     var messageBuffer = new byte[BitConverter.ToInt32(lenBuffer)];
                     _ = await pipeClient.ReadAsync(messageBuffer.AsMemory(0, messageBuffer.Length));
                     var temp = Encoding.UTF8.GetString(messageBuffer);
-                    var modelServerResponse = JsonSerializer.Deserialize<ModelResponse>(temp);
+                    var modelServerResponse = JsonSerializer.Deserialize<ModelResponse>(temp, new JsonSerializerOptions(JsonSerializerDefaults.Web));
                     return modelServerResponse ?? new ModelResponse();
                 }
             }

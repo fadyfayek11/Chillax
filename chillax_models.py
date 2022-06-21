@@ -2,21 +2,36 @@ from transformers import AutoTokenizer, TFAutoModel
 import tensorflow as tf
 import pickle
 import numpy as np
-from keras.models import model_from_json
 import re
 from nltk.tokenize import word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.corpus import stopwords
 import string
-from keras.models import model_from_json
-from keras.preprocessing.sequence import pad_sequences
+from keras_preprocessing.sequence import pad_sequences
+import tensorflow_hub as hub
+import tensorflow_text as text
 
-with open('./PredictionModels/depression_model.json') as depression_json:
-    depression_model = model_from_json(depression_json.read())
+def __get_depression_model():
+    # Bert layers
+    text_input = tf.keras.layers.Input(shape=(), dtype=tf.string, name='text')
+    preprocessed_text = bert_preprocess_model(text_input)
+    outputs = bert_encoder(preprocessed_text)
 
-depression_model.load_weights('./PredictionModels/weights.h5')
+    # Neural network layers
+    l = tf.keras.layers.Dropout(0.1, name="dropout")(outputs['pooled_output'])
+    l = tf.keras.layers.Dense(1, activation='sigmoid', name="output")(l)
+    ##
 
-depression_tokenizer = pickle.load(open('./PredictionModels/depression_tokenizer.pkl', 'rb'))
+    # Use inputs and outputs to construct a final model
+    model = tf.keras.Model(inputs=[text_input], outputs = [l])
+    return model
+
+bert_preprocess_model = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")
+bert_encoder = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/4")
+
+depression_model = __get_depression_model()
+
+depression_model.load_weights('./PredictionModels/depression_bert_weights.h5')
 
 marbert_model_path = 'UBC-NLP/MARBERT'
 tokenizer = AutoTokenizer.from_pretrained(marbert_model_path, from_tf=True)
@@ -61,12 +76,9 @@ def make_hs_prediction(text):
 
 def make_depression_prediction(text):
     preprocessed_text = __preprocess_depression(text)
-    texts = []
-    texts.append(preprocessed_text)
-    X = depression_tokenizer.texts_to_sequences(texts)
-    X = pad_sequences(X,maxlen=300)
+    X = tf.convert_to_tensor(np.array([preprocessed_text]), dtype=tf.string)
     prediction = depression_model(X)
-    if prediction[0] >= 0.6:
+    if prediction[0] >= 0.5:
         return 1
     return 0
 
@@ -83,16 +95,16 @@ def __preprocess_depression(tweet):
     
     new_tweet = new_tweet.translate(new_tweet.maketrans('','',string.punctuation)) # Remove Punctuation
     
-    new_tweet = new_tweet.strip() # Remove white spaces
-    
-    new_tweet = word_tokenize(new_tweet) # Tokenize into words
-    
-    new_tweet = ' '.join([word for word in new_tweet if word.isalpha()]) # Remove non alphabetic tokens
-    
-    stop_words = set(stopwords.words('english'))
-    new_tweet = ' '.join([word for word in new_tweet.split() if not word in stop_words]) # Filter out stop words
-    
-    lemmatizer = WordNetLemmatizer()
-    new_tweet = ' '.join([lemmatizer.lemmatize(word,"v") for word in new_tweet.split()]) # Word Lemmatization
-    
     return new_tweet
+
+# while True:
+#     input_text = input("enter text:")
+#     choice = int(input("predict:\n1-Off & HS\n2-Depression\n"))
+#     if choice == 1:
+#         print(f'Offensive: {make_offensive_prediction(input_text)}, Hatespeech: {make_hs_prediction(input_text)}')
+#     elif choice == 2:
+#         print(f'Depression: {make_depression_prediction(input_text)}')
+#     else:
+#         break
+
+

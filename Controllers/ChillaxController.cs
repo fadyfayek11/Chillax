@@ -45,7 +45,7 @@ namespace Chillax.Controllers
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DataModel))]
         public async Task<ActionResult> SendMessage([FromForm]string userName, [FromForm] string message)
         {
-            var user = _context.User.FirstOrDefault(u => u.Name.Equals(userName));
+            var user = await _context.User.FirstOrDefaultAsync(u => u.Name.Equals(userName));
             if (user is null) return new BadRequestObjectResult(new AppResponse("Server Error", ResponseStatus.Error));
             
             var response = await Result.GetPredictions(message);
@@ -63,7 +63,7 @@ namespace Chillax.Controllers
 
             await _chat.Clients.All.SendAsync("Send", userName, message,status);
             _logger.LogInformation("Message has been sent");
-            return new OkObjectResult(new DataModel() { Message = Message.Message, Status = Message.Status, UserName = Message.User.Name });
+            return new OkObjectResult(new DataModel() { Message = Message.Message, Status = Message.Status, UserName = user.Name });
         }
 
         private static MessageStatus GetStatus(ModelResponse response)
